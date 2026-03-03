@@ -1,9 +1,14 @@
 package main
 
 import (
+	"fmt"
+	"io"
+	"log"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/Xander-Trof/service-sitter/dockercomands"
+	"github.com/moby/moby/api/types/container"
 )
 
 
@@ -18,11 +23,27 @@ type reloadData struct {
 	Done bool `json:"done"`
 }
 
+type ContainersResponse struct {
+	ActiveContainers []string `json:"active_containers"`
+}
+
+type ContainerStatusResponse struct {
+	ServiceName string `json:"service_name"`
+	Status      string `json:"status"`
+	Image       string `json:"image"`
+	CreatedAt   int64 `json:"created_at"`
+	Health     *container.HealthSummary `json:",omitempty"`
+}
+
+type GeneralStatusResponse struct {
+	Services []ContainerStatusResponse `json:"services"`
+}
 
 func main() {
 	router := gin.Default()
 	router.GET("/", getDescription)
-	router.GET("/status/:serviceName", getStatus)
+	router.GET("/status/:serviceName", getServiceStatus)
+	router.GET("/status", getGeneralStatus)
 	router.GET("/logs/:serviceName", getLogs)
 	router.POST("/reload/:serviceName", reloadService)
 
@@ -30,29 +51,85 @@ func main() {
 }
 
 func getDescription(c *gin.Context) {
-	// Описание ручек сервиса
-	// c.String(200, "Hello World")
 	containers := dockercomands.DockerPS()
-	c.JSON(200, containers)
+	names := dockercomands.GetContainerNames(containers.Items)
+
+	c.JSON(200, ContainersResponse{ActiveContainers: names})
 }
 
-func getStatus(c *gin.Context) {
+func getGeneralStatus(c *gin.Context) {
+	// Получение общей информации о сервисах
+	containers := dockercomands.DockerPS()
+
+	services := make([]ContainerStatusResponse, 0, len(containers.Items))
+	for _, c := range containers.Items {
+		services = append(services, ContainerStatusResponse{
+			ServiceName: c.Names[0][1:],
+			Status:      c.Status,
+			Image:       c.Image,
+			CreatedAt:   c.Created,
+		})
+	}
+	
+	respData := GeneralStatusResponse{Services: services}
+	c.JSON(200, respData)
+}
+
+func getServiceStatus(c *gin.Context) {
 	// Получение статуса по имени сервиса
 	serviceName := c.Param("serviceName")
+	allContainers := dockercomands.DockerPS()
+	container := dockercomands.FindContainerByName(allContainers.Items, serviceName)
+	if container == nil {
+		s := fmt.Sprintf("container not found %s", serviceName)
+		c.JSON(404, gin.H{"error": s})
+		return
+	}
+	respData := ContainerStatusResponse{ServiceName: serviceName, Status: container.Status, Image: container.Image, CreatedAt: container.Created}
 
-	c.String(200, serviceName)
+	c.JSON(200, respData)
 }
 
 func getLogs(c *gin.Context) {
 	// Получение логов по имени сервиса
 	serviceName := c.Param("serviceName")
+	logsStream := dockercomands.DockerLogs(serviceName)
+	if logsStream == nil {
+		s := fmt.Sprintf("container %s not found or logs not available", serviceName)
+		c.JSON(404, gin.H{"error": s})
+		return
+	}
+	defer logsStream.Close()
 
-	c.String(200, serviceName)
+	// Читаем логи в память для логирования
+	logsBytes, err := io.ReadAll(logsStream)
+	if err != nil {
+		log.Printf("[ERROR reading logs for %s]: %v", serviceName, err)
+		c.JSON(500, gin.H{"error": fmt.Sprintf("failed to read logs: %v", err)})
+		return
+	}
+
+	log.Printf("[LOGS for %s] length=%d bytes\n%s", serviceName, len(logsBytes), string(logsBytes))
+
+	c.Header("Content-Type", "text/plain; charset=utf-8")
+	c.Header("Content-Disposition", "attachment; filename="+serviceName+".log")
+
+	c.String(200, string(logsBytes))
 }
 
 func reloadService(c *gin.Context) {
 	// Перезапуск сервиса по его имени
 	serviceName := c.Param("serviceName")
 
-	c.String(200, serviceName)
+	result, err := dockercomands.DockerRestart(serviceName)
+	if err != nil {
+		c.JSON(500, gin.H{"error": fmt.Sprintf("failed to restart container: %v", err)})
+		return
+	}
+	// if result == nil {
+	// 	c.JSON(404, gin.H{"error": "container not found or logs not available"})
+	// 	return
+	// }
+
+	c.JSON(200, result)
 }
