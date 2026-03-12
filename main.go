@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 
 	"github.com/Xander-Trof/service-sitter/dockercomands"
 	"github.com/moby/moby/api/types/container"
@@ -40,7 +42,16 @@ type GeneralStatusResponse struct {
 }
 
 func main() {
+	// Загружаем переменные из .env
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: .env file not found, using system environment variables")
+	}
+
 	router := gin.Default()
+
+	// Middleware для проверки API-ключа
+	router.Use(apiKeyMiddleware())
+
 	router.GET("/", getDescription)
 	router.GET("/status/:serviceName", getServiceStatus)
 	router.GET("/status", getGeneralStatus)
@@ -48,6 +59,40 @@ func main() {
 	router.POST("/reload/:serviceName", reloadService)
 
 	router.Run("localhost:8080")
+}
+
+// Middleware для проверки API-ключа в заголовке
+func apiKeyMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Получаем ключ из .env
+		apiKey := os.Getenv("API_KEY")
+		if apiKey == "" {
+			log.Println("WARNING: API_KEY not set in .env")
+			c.JSON(500, gin.H{"error": "server configuration error"})
+			c.Abort()
+			return
+		}
+
+		// Получаем ключ из заголовка запроса
+		requestKey := c.GetHeader("AuthorizationKey")
+
+		// Проверяем ключ
+		if requestKey == "" {
+			c.JSON(401, gin.H{"error": "missing API key in header"})
+			c.Abort()
+			return
+		}
+
+		if requestKey != apiKey {
+			log.Printf("Unauthorized request with key: %s", requestKey)
+			c.JSON(401, gin.H{"error": "invalid API key"})
+			c.Abort()
+			return
+		}
+
+		// Ключ валиден — продолжаем обработку
+		c.Next()
+	}
 }
 
 func getDescription(c *gin.Context) {

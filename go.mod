@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/gin-gonic/gin v1.11.0
+	github.com/joho/godotenv v1.5.1
 	github.com/moby/moby/api v1.53.0
 	github.com/moby/moby/client v0.2.2
 )
