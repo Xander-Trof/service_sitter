@@ -10,7 +10,8 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/Xander-Trof/service-sitter/dockercomands"
-	"github.com/moby/moby/api/types/container"
+	"github.com/docker/docker/api/types"
+
 )
 
 
@@ -33,8 +34,8 @@ type ContainerStatusResponse struct {
 	ServiceName string `json:"service_name"`
 	Status      string `json:"status"`
 	Image       string `json:"image"`
-	CreatedAt   int64 `json:"created_at"`
-	Health     *container.HealthSummary `json:",omitempty"`
+	CreatedAt   int64  `json:"created_at"`
+	Health     *types.Health `json:",omitempty"`
 }
 
 type GeneralStatusResponse struct {
@@ -97,7 +98,7 @@ func apiKeyMiddleware() gin.HandlerFunc {
 
 func getDescription(c *gin.Context) {
 	containers := dockercomands.DockerPS()
-	names := dockercomands.GetContainerNames(containers.Items)
+	names := dockercomands.GetContainerNames(containers)
 
 	c.JSON(200, ContainersResponse{ActiveContainers: names})
 }
@@ -106,8 +107,8 @@ func getGeneralStatus(c *gin.Context) {
 	// Получение общей информации о сервисах
 	containers := dockercomands.DockerPS()
 
-	services := make([]ContainerStatusResponse, 0, len(containers.Items))
-	for _, c := range containers.Items {
+	services := make([]ContainerStatusResponse, 0, len(containers))
+	for _, c := range containers {
 		services = append(services, ContainerStatusResponse{
 			ServiceName: c.Names[0][1:],
 			Status:      c.Status,
@@ -124,7 +125,7 @@ func getServiceStatus(c *gin.Context) {
 	// Получение статуса по имени сервиса
 	serviceName := c.Param("serviceName")
 	allContainers := dockercomands.DockerPS()
-	container := dockercomands.FindContainerByName(allContainers.Items, serviceName)
+	container := dockercomands.FindContainerByName(allContainers, serviceName)
 	if container == nil {
 		s := fmt.Sprintf("container not found %s", serviceName)
 		c.JSON(404, gin.H{"error": s})
@@ -171,10 +172,6 @@ func reloadService(c *gin.Context) {
 		c.JSON(500, gin.H{"error": fmt.Sprintf("failed to restart container: %v", err)})
 		return
 	}
-	// if result == nil {
-	// 	c.JSON(404, gin.H{"error": "container not found or logs not available"})
-	// 	return
-	// }
 
 	c.JSON(200, result)
 }

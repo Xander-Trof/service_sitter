@@ -3,58 +3,60 @@ package dockercomands
 import (
 	"context"
 
-	"github.com/moby/moby/client"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 )
 
-func DockerRestart(serviceName string) (result client.ContainerRestartResult, err error) {
+func DockerRestart(serviceName string) (string, error) {
 	timeout := 10
 
-	cli, err := client.New(client.FromEnv)
+	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		panic(err)
 	}
 	defer cli.Close()
 
-	allContainers, err := cli.ContainerList(context.Background(), client.ContainerListOptions{
+	allContainers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{
         All: true,
     })
     if err != nil {
         panic(err)
     }
-	container := FindContainerByName(allContainers.Items, serviceName)
+	restartingContainer := FindContainerByName(allContainers, serviceName)
 
-    if container == nil {
-        return client.ContainerRestartResult{}, nil
+    if restartingContainer == nil {
+        return "", nil
     }
 
-    result, err = cli.ContainerRestart(context.Background(), container.ID, client.ContainerRestartOptions{
-		Timeout: &timeout,
-	})
-	return result, err
+    err = cli.ContainerRestart(context.Background(), restartingContainer.ID, container.StopOptions{
+        Timeout: &timeout,
+    })
+	return restartingContainer.ID, err
 }
 
-func DockerRestartAll() []client.ContainerRestartResult {
+func DockerRestartAll() []string {
 	timeout := 10
 
-	cli, err := client.New(client.FromEnv)
+	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		panic(err)
 	}
 	defer cli.Close()
 
-	allContainers, err := cli.ContainerList(context.Background(), client.ContainerListOptions{
+	allContainers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{
         All: true,
     })
     if err != nil {
         panic(err)
     }
 
-	allResults := make([]client.ContainerRestartResult, 0, len(allContainers.Items))
-	for _, container := range allContainers.Items {
-		result, _ := cli.ContainerRestart(context.Background(), container.ID, client.ContainerRestartOptions{
+	allResults := make([]string, 0, len(allContainers))
+	for _, RestartingContainer := range allContainers {
+		_ = cli.ContainerRestart(context.Background(), RestartingContainer.ID, container.StopOptions{
 			Timeout: &timeout,
 		})
-		allResults = append(allResults, result)
+		allResults = append(allResults, RestartingContainer.ID)
 	}
 	return allResults
 }

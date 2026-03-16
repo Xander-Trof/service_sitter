@@ -3,23 +3,23 @@ package dockercomands
 import (
     "strings"
 
-    "github.com/moby/moby/api/types/container"
+    "github.com/docker/docker/api/types"
 )
 
-func FindContainerByName(containerList []container.Summary, targetName string) *container.Summary {
-    for _, container := range containerList {
-        for _, name := range container.Names {
+func FindContainerByName(containerList []types.Container, targetName string) *types.Container {
+    for i, c := range containerList {
+        for _, name := range c.Names {
             // Убираем префикс '/' из имени контейнера
             cleanName := strings.TrimPrefix(name, "/")
             if cleanName == targetName {
-                return &container
+                return &containerList[i]
             }
         }
     }
     return nil
 }
 
-func GetContainerNames(containerList []container.Summary) []string {
+func GetContainerNames(containerList []types.Container) []string {
     names := make([]string, 0, len(containerList))
     for _, container := range containerList {
         for _, name := range container.Names {
