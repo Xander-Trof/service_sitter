@@ -1,9 +1,10 @@
 package dockercomands
 
 import (
-    "context"
-    "io"
-    "log"
+	"context"
+	"io"
+	"log"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -31,6 +32,7 @@ func DockerLogs(serviceName string) io.ReadCloser {
     res, err := cli.ContainerLogs(context.Background(), container.ID, types.ContainerLogsOptions{
         ShowStdout: true,
         ShowStderr: true,
+        Since: time.Now().AddDate(0, -1, 0).Format(time.RFC3339),
     })
     if err != nil {
         log.Fatal(err)
