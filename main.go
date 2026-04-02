@@ -59,7 +59,7 @@ func main() {
 	router.POST("/reload/:serviceName", reloadService)
 	router.POST("/reload", reloadAllServices)
 
-	router.Run("localhost:8080")
+	router.Run("0.0.0.0:8080")
 }
 
 // Middleware для проверки API-ключа в заголовке
