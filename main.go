@@ -11,7 +11,6 @@ import (
 
 	"github.com/Xander-Trof/service-sitter/dockercomands"
 	"github.com/docker/docker/api/types"
-
 )
 
 
@@ -58,8 +57,9 @@ func main() {
 	router.GET("/status", getGeneralStatus)
 	router.GET("/logs/:serviceName", getLogs)
 	router.POST("/reload/:serviceName", reloadService)
+	router.POST("/reload", reloadAllServices)
 
-	router.Run("localhost:8080")
+	router.Run("0.0.0.0:8080")
 }
 
 // Middleware для проверки API-ключа в заголовке
@@ -97,10 +97,39 @@ func apiKeyMiddleware() gin.HandlerFunc {
 }
 
 func getDescription(c *gin.Context) {
-	containers := dockercomands.DockerPS()
-	names := dockercomands.GetContainerNames(containers)
-
-	c.JSON(200, ContainersResponse{ActiveContainers: names})
+	apiInfo := []gin.H{
+			{
+				"endpoint":    "/",
+				"method":      "GET",
+				"description": "Возвращает список с API документацией",
+			},
+			{
+				"endpoint":    "/status",
+				"method":      "GET",
+				"description": "Возвращает статусы всех контейнеров (запущенных и упавших)",
+			},
+			{
+				"endpoint":    "/status/:serviceName",
+				"method":      "GET",
+				"description": "Возвращает статус указанного контейнера",
+			},
+			{
+				"endpoint":    "/logs/:serviceName",
+				"method":      "GET",
+				"description": "Возвращает логи указанного контейнера",
+			},
+			{
+				"endpoint":    "/reload/:serviceName",
+				"method":      "POST",
+				"description": "Перезапускает указанный контейнер",
+			},
+			{
+				"endpoint":    "/reload",
+				"method":      "POST",
+				"description": "Перезапускает все контейнеры",
+			},
+		}
+	c.JSON(200, apiInfo)
 }
 
 func getGeneralStatus(c *gin.Context) {
@@ -172,6 +201,13 @@ func reloadService(c *gin.Context) {
 		c.JSON(500, gin.H{"error": fmt.Sprintf("failed to restart container: %v", err)})
 		return
 	}
+
+	c.JSON(200, result)
+}
+
+func reloadAllServices(c *gin.Context) {
+	// Перезапуск всех сервисов
+	result := dockercomands.DockerRestartAll()
 
 	c.JSON(200, result)
 }
