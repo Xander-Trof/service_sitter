@@ -1,7 +1,7 @@
 package dockercomands
 
 import (
-    "context"
+	"context"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -15,7 +15,7 @@ func DockerPS() []types.Container {
     }
     defer cli.Close()
 
-    containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{})
+    containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{All: true})
     if err != nil {
         panic(err)
     }
