@@ -11,7 +11,6 @@ import (
 
 	"github.com/Xander-Trof/service-sitter/dockercomands"
 	"github.com/docker/docker/api/types"
-
 )
 
 
@@ -97,10 +96,34 @@ func apiKeyMiddleware() gin.HandlerFunc {
 }
 
 func getDescription(c *gin.Context) {
-	containers := dockercomands.DockerPS()
-	names := dockercomands.GetContainerNames(containers)
-
-	c.JSON(200, ContainersResponse{ActiveContainers: names})
+	apiInfo := []gin.H{
+			{
+				"endpoint":    "/",
+				"method":      "GET",
+				"description": "Возвращает список с API документацией",
+			},
+			{
+				"endpoint":    "/status",
+				"method":      "GET",
+				"description": "Возвращает статусы всех контейнеров (запущенных и упавших)",
+			},
+			{
+				"endpoint":    "/status/:serviceName",
+				"method":      "GET",
+				"description": "Возвращает статус указанного контейнера",
+			},
+			{
+				"endpoint":    "/logs/:serviceName",
+				"method":      "GET",
+				"description": "Возвращает логи указанного контейнера",
+			},
+			{
+				"endpoint":    "/reload/:serviceName",
+				"method":      "POST",
+				"description": "Перезапускает указанный контейнер",
+			},
+		}
+	c.JSON(200, apiInfo)
 }
 
 func getGeneralStatus(c *gin.Context) {
